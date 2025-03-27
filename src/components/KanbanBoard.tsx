@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Plus, Trash2 } from 'lucide-react';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 interface Task {
   id: string;
@@ -49,20 +50,71 @@ const priorityColors = {
   high: 'bg-red-500/20 text-red-400',
 };
 
-const priorityOptions = [
-  { value: 'low', label: 'Low', color: 'text-green-400' },
-  { value: 'medium', label: 'Medium', color: 'text-yellow-400' },
-  { value: 'high', label: 'High', color: 'text-red-400' },
-];
-
 export default function KanbanBoard() {
-  const [columns, setColumns] = useState<Column[]>(initialColumns);
+  const [columns, setColumns] = useLocalStorage<Column[]>('kanban-columns', initialColumns);
+  const [isClient, setIsClient] = useState(false);
   const [newTask, setNewTask] = useState('');
   const [selectedPriority, setSelectedPriority] = useState<Task['priority']>('medium');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const handleDragEnd = (result: DropResult) => {
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  const validateTask = (content: string) => {
+    if (!content.trim()) {
+      setError('Task content cannot be empty');
+      return false;
+    }
+    if (content.length > 100) {
+      setError('Task content is too long (max 100 characters)');
+      return false;
+    }
+    return true;
+  };
+
+  const addTask = async () => {
+    if (!validateTask(newTask)) return;
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      const newTaskObj: Task = {
+        id: Date.now().toString(),
+        content: newTask.trim(),
+        priority: selectedPriority,
+      };
+
+      setColumns(prev =>
+        prev.map(col =>
+          col.id === 'todo'
+            ? { ...col, tasks: [...col.tasks, newTaskObj] }
+            : col
+        )
+      );
+
+      setNewTask('');
+      setSelectedPriority('medium');
+    } catch (err) {
+      setError('Failed to add task. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const deleteTask = (columnId: string, taskId: string) => {
+    setColumns(prev =>
+      prev.map(col =>
+        col.id === columnId
+          ? { ...col, tasks: col.tasks.filter(task => task.id !== taskId) }
+          : col
+      )
+    );
+  };
+
+  const onDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
 
     if (!destination) return;
@@ -100,48 +152,6 @@ export default function KanbanBoard() {
     setColumns(newColumns);
   };
 
-  const validateTask = (content: string): boolean => {
-    if (!content.trim()) {
-      setError('Task content cannot be empty');
-      return false;
-    }
-    if (content.length > 100) {
-      setError('Task content is too long (max 100 characters)');
-      return false;
-    }
-    return true;
-  };
-
-  const addTask = async () => {
-    if (!validateTask(newTask)) return;
-
-    setIsSubmitting(true);
-    setError('');
-
-    try {
-      const newTaskObj: Task = {
-        id: Date.now().toString(),
-        content: newTask.trim(),
-        priority: selectedPriority,
-      };
-
-      setColumns(prev =>
-        prev.map(col =>
-          col.id === 'todo'
-            ? { ...col, tasks: [...col.tasks, newTaskObj] }
-            : col
-        )
-      );
-
-      setNewTask('');
-      setSelectedPriority('medium');
-    } catch {
-      setError('Failed to add task. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -149,18 +159,23 @@ export default function KanbanBoard() {
     }
   };
 
-  const deleteTask = (columnId: string, taskId: string) => {
-    setColumns(prev =>
-      prev.map(col =>
-        col.id === columnId
-          ? {
-              ...col,
-              tasks: col.tasks.filter(task => task.id !== taskId),
-            }
-          : col
-      )
+  if (!isClient) {
+    return (
+      <div className="space-y-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-dark-700/50 rounded w-1/4"></div>
+          <div className="grid grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="space-y-4">
+                <div className="h-6 bg-dark-700/50 rounded w-1/3"></div>
+                <div className="h-32 bg-dark-700/50 rounded"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     );
-  };
+  }
 
   return (
     <div className="space-y-6">
@@ -193,15 +208,9 @@ export default function KanbanBoard() {
               className="bg-primary-500 px-4 py-2 rounded-lg bg-dark-800/50 border-dark-700 focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-colors appearance-none cursor-pointer"
               disabled={isSubmitting}
             >
-              {priorityOptions.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                  className={`${option.color} bg-dark-800`}
-                >
-                  {option.label}
-                </option>
-              ))}
+              <option value="low" className="bg-dark-800 text-green-400">Low</option>
+              <option value="medium" className="bg-dark-800 text-yellow-400">Medium</option>
+              <option value="high" className="bg-dark-800 text-red-400">High</option>
             </select>
             <button
               onClick={addTask}
@@ -224,7 +233,7 @@ export default function KanbanBoard() {
       </div>
 
       {/* Kanban Board */}
-      <DragDropContext onDragEnd={handleDragEnd}>
+      <DragDropContext onDragEnd={onDragEnd}>
         <div className="grid grid-cols-3 gap-6">
           {columns.map((column) => (
             <div key={column.id} className="space-y-4">
@@ -234,6 +243,7 @@ export default function KanbanBoard() {
                   {column.tasks.length}
                 </span>
               </div>
+
               <Droppable droppableId={column.id}>
                 {(provided, snapshot) => (
                   <div
@@ -264,7 +274,7 @@ export default function KanbanBoard() {
                               cursor: 'grab',
                             }}
                             className={`p-4 mb-3 rounded-lg bg-dark-800/50 border border-dark-700 shadow-lg ${
-                              snapshot.isDragging ? 'backdrop-blur-sm transform -translate-x-1/2 -translate-y-1/2' : ''
+                              snapshot.isDragging ? 'backdrop-blur-sm' : ''
                             }`}
                           >
                             <div className="flex items-start gap-3">
