@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Clock, Play, Pause, RotateCcw, Settings, Bell } from 'lucide-react';
+import { Clock, Play, Pause, RotateCcw, Settings } from 'lucide-react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
 type TimerMode = 'work' | 'shortBreak' | 'longBreak';
@@ -34,24 +34,6 @@ export default function PomodoroTimer() {
     setIsLoading(false);
   }, []);
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-
-    if (isRunning && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            handleTimerComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-
-    return () => clearInterval(interval);
-  }, [isRunning, timeLeft]);
-
   const playSound = () => {
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
@@ -81,6 +63,24 @@ export default function PomodoroTimer() {
       setTimeLeft(settings.workTime);
     }
   };
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (isRunning && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            handleTimerComplete();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => clearInterval(interval);
+  }, [isRunning, timeLeft, handleTimerComplete]);
 
   const toggleTimer = () => {
     setIsRunning(!isRunning);
@@ -217,16 +217,16 @@ export default function PomodoroTimer() {
         <svg className="w-full h-48" viewBox="0 0 100 100">
           <circle
             className="text-dark-700"
-            strokeWidth="8"
+            strokeWidth="3"
             stroke="currentColor"
             fill="transparent"
-            r="45"
+            r="42"
             cx="50"
             cy="50"
           />
           <circle
             className={getModeColor()}
-            strokeWidth="8"
+            strokeWidth="3"
             strokeLinecap="round"
             stroke="currentColor"
             fill="transparent"
