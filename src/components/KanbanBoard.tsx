@@ -97,7 +97,7 @@ export default function KanbanBoard() {
 
       setNewTask('');
       setSelectedPriority('medium');
-    } catch (err) {
+    } catch {
       setError('Failed to add task. Please try again.');
     } finally {
       setIsSubmitting(false);
